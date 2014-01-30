@@ -182,7 +182,7 @@ sub make_date {
     my ($self, $date) = @_;
     return {
         '__type' => 'Date',
-        'iso'    => $date
+        'iso'    => (ref $date eq '__APP__::Core::Date') ? $date->raw $date
     };
 }
 
@@ -206,23 +206,49 @@ sub new {
     my ($class, $created_at) = @_;
     my $self = $class->SUPER::new();
     my $time;
-    if (defined $created_at) {
-        my $strp = DateTime::Format::Strptime->new(
-            pattern => '%Y-%m-%dT%H:%M:%S'
-        );
-        $time = $strp->parse_datetime($created_at);
-        unless (defined $time) {
-            $strp = DateTime::Format::Strptime->new(
-                pattern => '%Y-%m-%d'
-            );
-            $time = $strp->parse_datetime($created_at);
-        }
+    if (defined $created_at && ref $created_at eq 'DateTime') {
+        $time = $created_at->clone;
     } else {
-        $time = DateTime->now(time_zone => 'local');
+        $time = $self->__parse_datetime($created_at);
     }
     $self->{time} = $time;
     return bless($self, $class);
 }
+
+sub __parse_datetime {
+    my ($self, $datetime) = @_;
+    return DateTime->now(time_zone => 'local') unless (defined $datetime);
+    my $time;
+    my $strp;
+    $strp = DateTime::Format::Strptime->new(
+        pattern => '%Y-%m-%dT%H:%M:%S.%3N%Z'
+    );
+    $time = $strp->parse_datetime($datetime);
+    return $time if (defined $time);
+
+    $strp = DateTime::Format::Strptime->new(
+        pattern => '%Y-%m-%dT%H:%M:%S.%3N',
+        time_zone => 'local'
+    );
+    $time = $strp->parse_datetime($datetime);
+    return $time if (defined $time);
+
+    $strp = DateTime::Format::Strptime->new(
+        pattern => '%Y-%m-%dT%H:%M:%S',
+        time_zone => 'local'
+    );
+    $time = $strp->parse_datetime($datetime);
+    return $time if (defined $time);
+
+    $strp = DateTime::Format::Strptime->new(
+        pattern => '%Y-%m-%d',
+        time_zone => 'local'
+    );
+    $time = $strp->parse_datetime($datetime);
+    return $time if (defined $time);
+    return undef;
+}
+
 
 sub beginning_of_month {
     my ($self) = @_;
@@ -275,14 +301,14 @@ sub raw {
     return sprintf("%sT%s", $self->time->ymd(), $self->time->hms());
 }
 
-sub convert_to_us_time_zone {
+sub convert_to_gmt {
     my ($self, $time) = shift;
     my $cloned_time = (defined $time) ? $time->clone : $self->time->clone;
     $cloned_time->subtract(hours => 9);
     return $cloned_time;
 }
 
-sub convert_to_jp_time_zone {
+sub convert_to_jst {
     my ($self, $time) = shift;
     my $cloned_time = (defined $time) ? $time->clone : $self->time->clone;
     $cloned_time->add(hours => 9);
