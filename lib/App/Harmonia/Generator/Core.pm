@@ -755,6 +755,12 @@ sub function {
     return $self->call('POST', "functions/$function_name", $params);
 }
 
+sub push_notification {
+    my ($self, $params) = @_;
+    return 0 unless defined $params;
+    return $self->call('POST', 'push', $params);
+}
+
 sub call {
     my ($self, $method, $table, $params, $option) = @_;
     my ($original_table, $original_params, $original_option) = ($table, $params, $option);
@@ -1156,7 +1162,8 @@ use constant {
     DEFAULT_LIMIT           => 1000,
     USER_TABLE_NAME         => 'user',
     ROLE_TABLE_NAME         => 'role',
-    INSTALLATION_TABLE_NAME => 'installation'
+    INSTALLATION_TABLE_NAME => 'installation',
+    PUSH_NOTIFICATION_URL   => 'push'
 };
 
 sub new {
@@ -1170,7 +1177,8 @@ sub build {
     if ($name =~ /single/ || $name =~ /search/ || $name =~ /count/) {
         return $self->build_for_get;
     } elsif ($name =~ /update/ || $name =~ /insert/ ||
-             $name =~ /delete/ || $name =~ /function/) {
+             $name =~ /delete/ || $name =~ /function/ ||
+             $name =~ /push_notification/) {
         return $self->build_for_other;
     } else {
         die "sorry, still not supported method : $name";
@@ -1251,7 +1259,8 @@ sub build_request_table_name {
     my ($self) = @_;
     my $table = $self->table;
     my $is_standard_table = $self->__is_parse_standard_table($table);
-    return ($is_standard_table) ? $table . 's' : sprintf("classes/%s", camelize($table));
+    return sprintf("classes/%s", camelize($table)) unless ($is_standard_table);
+    return ($table eq PUSH_NOTIFICATION_URL) ? $table : $table . 's';
 }
 
 sub __is_parse_standard_table {
@@ -1259,6 +1268,7 @@ sub __is_parse_standard_table {
     return 1 if ($table eq USER_TABLE_NAME);
     return 1 if ($table eq ROLE_TABLE_NAME);
     return 1 if ($table eq INSTALLATION_TABLE_NAME);
+    return 1 if ($table eq PUSH_NOTIFICATION_URL);
     return 0;
 }
 
