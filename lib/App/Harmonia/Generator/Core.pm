@@ -180,9 +180,12 @@ sub make_relation {
 
 sub make_date {
     my ($self, $date) = @_;
+    my $date_string = (ref $date =~ /__APP__::Date/)
+        ? $date->to_string_for_parse_com
+        : $date;
     return {
         '__type' => 'Date',
-        'iso'    => $date
+        'iso'    => $date_string
     };
 }
 
@@ -207,21 +210,50 @@ sub new {
     my $self = $class->SUPER::new();
     my $time;
     if (defined $created_at) {
-        my $strp = DateTime::Format::Strptime->new(
-            pattern => '%Y-%m-%dT%H:%M:%S'
-        );
-        $time = $strp->parse_datetime($created_at);
-        unless (defined $time) {
-            $strp = DateTime::Format::Strptime->new(
-                pattern => '%Y-%m-%d'
-            );
-            $time = $strp->parse_datetime($created_at);
-        }
+        $time = (ref $created_at eq 'DateTime')
+            ? $created_at->clone
+            : $self->parse_datetime($created_at);
     } else {
         $time = DateTime->now(time_zone => 'local');
     }
     $self->{time} = $time;
     return bless($self, $class);
+}
+
+sub parse_datetime {
+    my ($self, $parse_string) = @_;
+    return undef unless (defined $parse_string);
+    my $datetime;
+    my $strp;
+    $strp = DateTime::Format::Strptime->new(
+        pattern => '%Y-%m-%dT%H:%M:%S.%3NZ',
+        time_zone => 'UTC'
+    );
+    $datetime = $strp->parse_datetime($parse_string);
+    return $datetime->set_time_zone('local') if (defined $datetime);
+
+    $strp = DateTime::Format::Strptime->new(
+        pattern => '%Y-%m-%dT%H:%M:%S.%3N',
+        time_zone => 'local'
+    );
+    $datetime = $strp->parse_datetime($parse_string);
+    return $datetime if (defined $datetime);
+
+    $strp = DateTime::Format::Strptime->new(
+        pattern => '%Y-%m-%dT%H:%M:%S',
+        time_zone => 'local'
+    );
+    $datetime = $strp->parse_datetime($parse_string);
+    return $datetime if (defined $datetime);
+
+    $strp = DateTime::Format::Strptime->new(
+        pattern => '%Y-%m-%d',
+        time_zone => 'local'
+    );
+    $datetime = $strp->parse_datetime($parse_string);
+    return $datetime if (defined $datetime);
+
+    return undef;
 }
 
 sub beginning_of_month {
@@ -265,27 +297,29 @@ sub duration {
     return \@ret;
 }
 
-sub raw_time {
-    my ($self, $time) = @_;
-    return sprintf("%sT%s.000Z", $time->ymd(), $time->hms());
+sub to_string_for_parse_com {
+    my ($self, $date) = @_;
+    my $datetime = (defined $date) ? $date->clone : $self->time->clone;
+    $datetime->set_time_zone('UTC');
+    return $datetime->strftime('%FT%T.%3NZ');
 }
 
-sub raw {
+sub to_string {
     my ($self) = shift;
-    return sprintf("%sT%s", $self->time->ymd(), $self->time->hms());
+    return $self->time->strftime('%FT%T.%3N');
 }
 
-sub convert_to_us_time_zone {
+sub convert_to_utc {
     my ($self, $time) = shift;
     my $cloned_time = (defined $time) ? $time->clone : $self->time->clone;
-    $cloned_time->subtract(hours => 9);
+    $cloned_time->set_time_zone('UTC');
     return $cloned_time;
 }
 
-sub convert_to_jp_time_zone {
+sub convert_to_jst {
     my ($self, $time) = shift;
     my $cloned_time = (defined $time) ? $time->clone : $self->time->clone;
-    $cloned_time->add(hours => 9);
+    $cloned_time->set_time_zone('Asia/Tokyo');
     return $cloned_time;
 }
 
